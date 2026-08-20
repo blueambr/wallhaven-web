@@ -1,20 +1,15 @@
 <script lang="ts">
-	import type { EnhancedImgAttributes } from '@sveltejs/enhanced-img';
+  import type { EnhancedImgAttributes } from "@sveltejs/enhanced-img";
 
-	const {
-		class: className,
-		src,
-		alt = '',
-		loading = 'lazy',
-		fetchpriority = 'auto'
-	}: EnhancedImgAttributes = $props();
+  type Props = Omit<EnhancedImgAttributes, "src"> & {
+    src: string | EnhancedImgAttributes["src"];
+  };
+
+  const { class: className, src, alt = "", loading = "lazy", fetchpriority = "auto" }: Props = $props();
 </script>
 
-<enhanced:img
-	class={className}
-	src={src || ''}
-	{alt}
-	sizes="min(1280px, 100vw)"
-	{loading}
-	{fetchpriority}
-/>
+{#if typeof src === "string"}
+  <img class={className} {src} {alt} sizes="min(1280px, 100vw)" {loading} {fetchpriority} />
+{:else}
+  <enhanced:img class={className} {src} {alt} sizes="min(1280px, 100vw)" {loading} {fetchpriority} />
+{/if}
