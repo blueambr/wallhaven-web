@@ -1,3 +1,3 @@
 <section class="container flex justify-center">
-	<div class="border-primary size-10 animate-spin rounded-full border-b-2"></div>
+  <div class="size-10 animate-spin rounded-full border-b-2 border-primary"></div>
 </section>

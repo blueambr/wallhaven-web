@@ -6,7 +6,7 @@
   import content from "./index.html?raw";
 </script>
 
-<Head meta={{ title: `Terms and Policies ${site.title_postfix}` }} />
+<Head meta={{ title: `Wallhaven can't process your request? ${site.title_postfix}` }} />
 
-<Headline narrowContainer>Terms and Policies</Headline>
+<Headline narrowContainer>Wallhaven can't process your request?</Headline>
 <RichText {content} />

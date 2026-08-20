@@ -1,15 +1,15 @@
 @theme {
-	--font-body: 'Poppins', sans-serif;
+  --font-body: "Poppins", sans-serif;
 
-	--color-primary: #ffffff;
-	--color-accent: #5d96ff;
+  --color-primary: #ffffff;
+  --color-accent: #f9d2ba;
 
-	--color-secondary: #222532;
-	--color-secondary-dark: #141724;
-	--color-secondary-mid: #282c3e;
-	--color-secondary-light: #474c65;
-	--color-secondary-warm: #382d59;
+  --color-secondary: #1d4533;
+  --color-secondary-dark: #112a20;
+  --color-secondary-mid: #224f3b;
+  --color-secondary-light: #3a6b55;
+  --color-secondary-warm: #2a5a46;
 
-	--color-error: #fe6f5e;
-	--color-success: #29ab87;
+  --color-error: #fe6f5e;
+  --color-success: #29ab87;
 }

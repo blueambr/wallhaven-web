@@ -3,8 +3,8 @@
   "short_name": "Wallpapers",
   "description": "High-quality wallpapers for desktop and mobile across multiple categories. Mobile-first design. Powered by wallhaven.cc.",
   "categories": ["photo", "entertainment"],
-  "theme_color": "#141724",
-  "background_color": "#141724",
+  "theme_color": "#112a20",
+  "background_color": "#112a20",
   "display": "standalone",
   "start_url": "/",
   "icons": [
@@ -20,5 +20,5 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
+  ]
 }

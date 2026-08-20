@@ -1,16 +1,16 @@
 html {
-	@apply bg-secondary font-body leading-[1.42] text-primary;
+  @apply bg-secondary font-body leading-[1.42] text-primary;
 }
 
 *:focus {
-	@apply outline-none;
+  @apply outline-none;
 }
 
 *:focus-visible {
-	@apply ring-4 ring-primary transition;
+  @apply ring-4 ring-primary transition;
 }
 
-[type='search']::-webkit-search-cancel-button,
-[type='search']::-webkit-search-decoration {
-	@apply appearance-none;
+[type="search"]::-webkit-search-cancel-button,
+[type="search"]::-webkit-search-decoration {
+  @apply appearance-none;
 }

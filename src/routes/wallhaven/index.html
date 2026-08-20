@@ -1,0 +1,31 @@
+<p>
+  <a href="https://wallhaven.cc" target="_blank" rel="noopener noreferrer">Wallhaven</a> is a wallpapers website we use
+  to source images. "Wallpapers lite", ultimately, is just a proxy. To get you access to the images we use official
+  Wallhaven API, which is limited to
+  <a href="https://wallhaven.cc/help/api#limits" target="_blank" rel="noopener noreferrer">45 requests per minute</a>.
+</p>
+
+<p>
+  It wouldn't be a problem, if Wallhaven allowed us to make requests directly from a browser. This way the limit would
+  apply per user only. However, currently Wallhaven prevents such requests by not providing
+  <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS" target="_blank" rel="noopener noreferrer"
+    >CORS headers</a
+  >.
+</p>
+
+<p>
+  The only available option is to use a server-side proxy, which is exactly how "Wallpapers lite" works right now.
+  Unfortunately, it means the 45 requests per minute limit applies to all users, not just individual ones.
+</p>
+
+<p>
+  For example, if 90 users open a page roughly at the same time, it will send 90 requests to Wallhaven and Wallhaven
+  will block half of them due to its API rate limiting.
+</p>
+
+<p>
+  It's frustrating, but there is nothing we can do about it. It is also understandable why Wallhaven set such
+  restrictions, so we can't just demand to lift them.
+</p>
+
+<p>Currently, the only solution is to wait and try again whenever you encounter such an error.</p>

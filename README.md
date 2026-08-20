@@ -2,20 +2,20 @@
 
 ## Prerequisites
 
-- `bun install`
+- `pn install`
 
 ## Dev
 
-- `bun dev`
+- `pn dev`
 
 ## Build
 
-- `bun run build`
+- `pn build`
 
 ## Preview
 
-- `bun run build`
-- `bun preview`
+- `pn build`
+- `pn preview`
 
 ## Config
 

@@ -1,217 +1,250 @@
 <script lang="ts">
-	import Button from '$lib/components/Button.svelte';
-	import Head from '$lib/components/Head.svelte';
-	import Image from '$lib/components/Image.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
-	import { apiWallpaperUrl, site } from '$lib/config';
-	import { apiKey } from '$lib/stores/apiKey.svelte';
-	import { Download, House, SquareArrowOutUpRight } from '@lucide/svelte';
-	import { Effect, pipe } from 'effect';
-	import { onMount } from 'svelte';
-	import type { PageProps } from './$types';
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
+  import { fetchJson, isApiError } from "$lib/api";
+  import Button from "$lib/components/Button.svelte";
+  import Head from "$lib/components/Head.svelte";
+  import Icon from "$lib/components/Icon.svelte";
+  import Image from "$lib/components/Image.svelte";
+  import Spinner from "$lib/components/Spinner.svelte";
+  import { apiWallpaperUrl, site } from "$lib/config";
+  import { apiKey } from "$lib/stores/apiKey.svelte";
+  import { ChevronLeft, Download, House, SquareArrowOutUpRight, TriangleAlert } from "@lucide/svelte";
+  import { Effect, pipe } from "effect";
+  import { onMount } from "svelte";
+  import { SvelteURLSearchParams } from "svelte/reactivity";
+  import type { PageProps } from "./$types";
 
-	const { data }: PageProps = $props();
-	const { id, wallpaper: ssrWallpaper } = data;
+  const { data }: PageProps = $props();
+  const { id, wallpaper: ssrWallpaper } = $derived(data);
 
-	let wallpaper = $state<App.Wallpaper | null>(ssrWallpaper || null);
-	let loading = $derived(false);
-	let menu = $state<HTMLElement | null>(null);
-	let menuVisible = $state(true);
-	let menuTimeout: number;
+  let wallpaper = $derived<App.Wallpaper | null>(ssrWallpaper || null);
+  let loading = $derived(false);
+  let rateLimited = $state(false);
+  let menu = $state<HTMLElement | null>(null);
+  let menuVisible = $state(true);
+  let menuTimeout: number;
 
-	const fetchWallpaper = () =>
-		Effect.tryPromise({
-			try: () => fetch(`${apiWallpaperUrl}/${id}?apikey=${apiKey.state}`).then((res) => res.json()),
-			catch: (error) => new Error(`‼️ fetchWallpaper: ${error}`)
-		});
+  const fetchWallpaper = () =>
+    Effect.tryPromise({
+      try: () => {
+        const params = new SvelteURLSearchParams();
+        if (apiKey.state) params.set("apikey", apiKey.state);
 
-	const fetchImageBlob = (url: string) =>
-		Effect.tryPromise({
-			try: () =>
-				fetch(`/api/wallhaven/proxy?url=${encodeURIComponent(url)}`).then((res) => res.blob()),
-			catch: (error) => new Error(`‼️ fetchImageBlob: ${error}`)
-		});
+        const query = params.size ? `?${params.toString()}` : "";
+        return fetchJson<App.WallpaperResponse>(`${apiWallpaperUrl}/${id}${query}`);
+      },
+      catch: (error) => (error instanceof Error ? error : new Error(`‼️ fetchWallpaper: ${error}`)),
+    });
 
-	const shareFile = (blob: Blob, filename: string) =>
-		Effect.tryPromise({
-			try: async () => {
-				if (navigator.share && navigator.canShare) {
-					const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
-					if (navigator.canShare({ files: [file] })) {
-						await navigator.share({ files: [file] });
-						return true;
-					}
-				}
-				return false;
-			},
-			catch: () => new Error('‼️ shareFile failed')
-		});
+  const fetchImageBlob = (url: string) =>
+    Effect.tryPromise({
+      try: () => fetch(`/api/wallhaven/proxy?url=${encodeURIComponent(url)}`).then((res) => res.blob()),
+      catch: (error) => new Error(`‼️ fetchImageBlob: ${error}`),
+    });
 
-	const downloadFile = (blob: Blob, filename: string) =>
-		Effect.sync(() => {
-			const url = URL.createObjectURL(blob);
-			const link = document.createElement('a');
-			link.href = url;
-			link.download = filename;
-			link.click();
-			URL.revokeObjectURL(url);
-		});
+  const shareFile = (blob: Blob, filename: string) =>
+    Effect.tryPromise({
+      try: async () => {
+        if (navigator.share && navigator.canShare) {
+          const file = new File([blob], filename, { type: blob.type || "image/jpeg" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file] });
+            return true;
+          }
+        }
+        return false;
+      },
+      catch: () => new Error("‼️ shareFile failed"),
+    });
 
-	const loadWallpaper = () => {
-		if (loading) return;
+  const downloadFile = (blob: Blob, filename: string) =>
+    Effect.sync(() => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
 
-		loading = true;
+  const loadWallpaper = () => {
+    if (loading) return;
 
-		Effect.runPromise(
-			pipe(
-				fetchWallpaper(),
-				Effect.tap(({ data: wallpaperData }) => {
-					wallpaper = wallpaperData;
-				}),
-				Effect.catchAll(() => Effect.void)
-			)
-		).finally(() => {
-			loading = false;
-		});
-	};
+    loading = true;
+    rateLimited = false;
 
-	const handleDownload = (e: Event) => {
-		e.stopPropagation();
+    Effect.runPromise(
+      pipe(
+        fetchWallpaper(),
+        Effect.tap(({ data: wallpaperData }) => {
+          wallpaper = wallpaperData;
+        }),
+        Effect.catchAll((error) =>
+          Effect.sync(() => {
+            rateLimited = isApiError(error) && error.status === 429;
+            console.error(error);
+          }),
+        ),
+      ),
+    ).finally(() => {
+      loading = false;
+    });
+  };
 
-		if (!wallpaper) return;
+  const handleDownload = (e: Event) => {
+    e.stopPropagation();
 
-		const filename = `${wallpaper.tags
-			.slice(0, 4)
-			.map(({ name }) => name)
-			.join('-')}-${wallpaper.resolution}.jpg`;
+    if (!wallpaper) return;
 
-		Effect.runPromise(
-			pipe(
-				fetchImageBlob(wallpaper.path),
-				Effect.flatMap((blob) =>
-					pipe(
-						shareFile(blob, filename),
-						Effect.flatMap((shared) => (shared ? Effect.void : downloadFile(blob, filename)))
-					)
-				),
-				Effect.catchAll(() => Effect.void)
-			)
-		);
-	};
+    const filename = `${wallpaper.tags
+      .slice(0, 4)
+      .map(({ name }) => name)
+      .join("-")}-${wallpaper.resolution}.jpg`;
 
-	const autoHideMenu = () => {
-		clearTimeout(menuTimeout);
-		menuTimeout = setTimeout(() => {
-			if (menu) {
-				menu.style.opacity = '0';
-				menu.style.transform = `translateY(${menu.offsetHeight + 16}px)`;
-				menuVisible = false;
-			}
-		}, 5000);
-	};
+    Effect.runPromise(
+      pipe(
+        fetchImageBlob(wallpaper.path),
+        Effect.flatMap((blob) =>
+          pipe(
+            shareFile(blob, filename),
+            Effect.flatMap((shared) => (shared ? Effect.void : downloadFile(blob, filename))),
+          ),
+        ),
+        Effect.catchAll(() => Effect.void),
+      ),
+    );
+  };
 
-	const toggleMenu = () => {
-		if (!menu) return;
+  const autoHideMenu = () => {
+    clearTimeout(menuTimeout);
+    menuTimeout = setTimeout(() => {
+      if (menu) {
+        menu.style.opacity = "0";
+        menu.style.transform = `translateY(${menu.offsetHeight + 16}px)`;
+        menuVisible = false;
+      }
+    }, 5000);
+  };
 
-		if (menuVisible) {
-			menu.style.opacity = '0';
-			menu.style.transform = `translateY(${menu.offsetHeight + 20}px)`;
-			menuVisible = false;
-		} else {
-			menu.style.opacity = '1';
-			menu.style.transform = 'translateY(0)';
-			menuVisible = true;
-		}
+  const toggleMenu = () => {
+    if (!menu) return;
 
-		autoHideMenu();
-	};
+    if (menuVisible) {
+      menu.style.opacity = "0";
+      menu.style.transform = `translateY(${menu.offsetHeight + 20}px)`;
+      menuVisible = false;
+    } else {
+      menu.style.opacity = "1";
+      menu.style.transform = "translateY(0)";
+      menuVisible = true;
+    }
 
-	onMount(() => {
-		loadWallpaper();
-		autoHideMenu();
-		return () => clearTimeout(menuTimeout);
-	});
+    autoHideMenu();
+  };
 
-	const getTags = (source: App.Wallpaper | null) =>
-		source
-			? source.tags.map(({ name }) => `${name.charAt(0).toUpperCase()}${name.slice(1)}`).join(', ')
-			: '';
+  onMount(() => {
+    if (!ssrWallpaper || apiKey.state) loadWallpaper();
+    autoHideMenu();
+    return () => clearTimeout(menuTimeout);
+  });
 
-	const getTitle = (source: App.Wallpaper | null) =>
-		source
-			? `${getTags(source).split(', ').slice(0, 4).join(', ')} ${source.resolution} Wallpaper`
-			: `Wallpaper ${id} ${site.title_postfix}`;
+  const getTags = (source: App.Wallpaper | null) =>
+    source ? source.tags.map(({ name }) => `${name.charAt(0).toUpperCase()}${name.slice(1)}`).join(", ") : "";
 
-	const tags = $derived(getTags(wallpaper));
-	const ssrTags = getTags(ssrWallpaper);
+  const getTitle = (source: App.Wallpaper | null) =>
+    source
+      ? `${getTags(source).split(", ").slice(0, 4).join(", ")} ${source.resolution} Wallpaper`
+      : `Wallpaper ${id} ${site.title_postfix}`;
 
-	const title = $derived(getTitle(wallpaper));
-	const ssrTitle = getTitle(ssrWallpaper);
+  const tags = $derived(getTags(wallpaper));
+  const ssrTags = $derived(getTags(ssrWallpaper));
 
-	const schema = ssrWallpaper
-		? {
-				'@type': 'ImageObject',
-				name: ssrTitle,
-				description: site.description,
-				contentUrl: ssrWallpaper.path,
-				thumbnailUrl: ssrWallpaper.thumbs.large,
-				width: ssrWallpaper.dimension_x,
-				height: ssrWallpaper.dimension_y,
-				encodingFormat: 'image/jpeg',
-				keywords: ssrTags,
-				dateCreated: ssrWallpaper.created_at,
-				author: {
-					'@type': 'Person',
-					name: ssrWallpaper.uploader?.username || 'Anonymous'
-				},
-				isPartOf: {
-					'@type': 'WebPage',
-					name: site.name,
-					url: site.url
-				}
-			}
-		: undefined;
+  const title = $derived(getTitle(wallpaper));
+  const ssrTitle = $derived(getTitle(ssrWallpaper));
+
+  const schema = $derived(
+    ssrWallpaper
+      ? {
+          "@type": "ImageObject",
+          name: ssrTitle,
+          description: site.description,
+          contentUrl: ssrWallpaper.path,
+          thumbnailUrl: ssrWallpaper.thumbs.large,
+          width: ssrWallpaper.dimension_x,
+          height: ssrWallpaper.dimension_y,
+          encodingFormat: "image/jpeg",
+          keywords: ssrTags,
+          dateCreated: ssrWallpaper.created_at,
+          author: {
+            "@type": "Person",
+            name: ssrWallpaper.uploader?.username || "Anonymous",
+          },
+          isPartOf: {
+            "@type": "WebPage",
+            name: site.name,
+            url: site.url,
+          },
+        }
+      : undefined,
+  );
+
+  const back = () => {
+    const segments = page.url.pathname.split("/").filter(Boolean);
+
+    if (segments.length > 0) {
+      const parentPath = segments.length === 1 ? "/" : "/" + segments.slice(0, -1).join("/");
+
+      goto(parentPath);
+    }
+  };
 </script>
 
 <svelte:head>
-	{#if wallpaper}
-		<meta property="og:image:width" content={wallpaper.dimension_x.toString()} />
-		<meta property="og:image:height" content={wallpaper.dimension_y.toString()} />
-	{/if}
+  {#if wallpaper}
+    <meta property="og:image:width" content={wallpaper.dimension_x.toString()} />
+    <meta property="og:image:height" content={wallpaper.dimension_y.toString()} />
+  {/if}
 </svelte:head>
 
 <Head
-	meta={{
-		title,
-		image: wallpaper?.path,
-		keywords: wallpaper
-			? `wallpaper, ${tags}, ${wallpaper.resolution}, background, mobile, desktop`
-			: undefined,
-		type: 'article',
-		schema
-	}}
+  meta={{
+    title,
+    image: wallpaper?.path,
+    keywords: wallpaper ? `wallpaper, ${tags}, ${wallpaper.resolution}, background, mobile, desktop` : undefined,
+    type: "article",
+    schema,
+  }}
 />
 
 <section class="flex min-h-dvh flex-col justify-center" role="presentation" onclick={toggleMenu}>
-	{#if wallpaper}
-		<Image src={`/api/wallhaven/proxy?url=${encodeURIComponent(wallpaper.path)}`} loading="eager" />
-		<div class="tabs" bind:this={menu}>
-			<div class="grid w-full grid-cols-3 items-center gap-2">
-				<Button variant="ghost" href="/" icon={House} title="Home"></Button>
-				<Button variant="ghost" icon={Download} type="button" title="Save" onclick={handleDownload}
-				></Button>
-				<Button
-					variant="ghost"
-					href={wallpaper.short_url}
-					icon={SquareArrowOutUpRight}
-					title="Source"
-					target="_blank"
-					rel="noopener noreferrer"
-					onclick={(e: Event) => e.stopPropagation()}
-				></Button>
-			</div>
-		</div>
-	{:else if loading}
-		<Spinner />
-	{/if}
+  {#if wallpaper}
+    <Image src={`/api/wallhaven/proxy?url=${encodeURIComponent(wallpaper.path)}`} loading="eager" />
+    <div class="tabs" bind:this={menu}>
+      <div class="grid w-full grid-cols-3 items-center gap-2">
+        <Button variant="ghost" href="/" icon={House} title="Home"></Button>
+        <Button variant="ghost" icon={Download} type="button" title="Save" onclick={handleDownload}></Button>
+        <Button
+          variant="ghost"
+          href={wallpaper.short_url}
+          icon={SquareArrowOutUpRight}
+          title="Source"
+          target="_blank"
+          rel="noopener noreferrer"
+          onclick={(e: Event) => e.stopPropagation()}
+        ></Button>
+      </div>
+    </div>
+  {:else if loading}
+    <Spinner />
+  {:else if rateLimited}
+    <div class="flex flex-col items-center gap-16 text-center">
+      <div class="flex flex-col items-center gap-3 text-center">
+        <Icon i={TriangleAlert} size={48} />
+        <h2 class="text-2xl font-semibold">Wallhaven can't process your request</h2>
+        <p>Wait a minute and try again, please.</p>
+      </div>
+      <Button label="Go Back" icon={ChevronLeft} iconSize={24} type="button" onclick={back}></Button>
+    </div>
+  {/if}
 </section>
